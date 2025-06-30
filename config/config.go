@@ -1,24 +1,41 @@
 package config
 
 import (
-	"database/sql"
 	"log"
 	"os"
 
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/jmoiron/sqlx"
+	_ "github.com/lib/pq"
 	"go.uber.org/zap"
 )
 
-func ConnectDB() *sql.DB {
-	dsn := os.Getenv("DB_DSN")
-	db, err := sql.Open("mysql", dsn)
+var DB *sqlx.DB
+
+func ConnectDB() *sqlx.DB {
+	dsn := os.Getenv("DATABASE_URL") // use Render’s env variable
+	db, err := sqlx.Connect("postgres", dsn)
 	if err != nil {
-		log.Fatalf("Failed to connect DB: %v", err)
+		log.Fatalf("Postgres connection failed: %v", err)
 	}
-	if err := db.Ping(); err != nil {
-		log.Fatalf("Ping failed: %v", err)
+	DB = db
+	return DB
+}
+
+func InitSchema() {
+	query := `
+	CREATE TABLE IF NOT EXISTS jobs (
+		id SERIAL PRIMARY KEY,
+		payload TEXT,
+		status VARCHAR(50),
+		result TEXT,
+		created_at TIMESTAMP DEFAULT NOW(),
+		updated_at TIMESTAMP DEFAULT NOW()
+	);`
+
+	_, err := DB.Exec(query)
+	if err != nil {
+		log.Fatalf("Failed to create jobs table: %v", err)
 	}
-	return db
 }
 
 func NewLogger() *zap.SugaredLogger {
